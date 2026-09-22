@@ -1,2 +1,2 @@
 # maze-game
-Juego 2D de navegador de laberintos
+Juego 2D de navegador de laberintos.
