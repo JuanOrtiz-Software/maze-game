@@ -1,0 +1,2 @@
+# This project uses Vite/TypeScript and does not require Python dependencies.
+# You can keep this file empty or add Python tooling if needed later.
