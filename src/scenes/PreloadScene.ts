@@ -32,6 +32,9 @@ export class PreloadScene extends Phaser.Scene {
             );
         }
         //cargar el fondo
+            this.load.image(
+                'ground',
+                '/assets/maps/ground.png');
     }
     create(): void {
         this.scene.start("GameScene");

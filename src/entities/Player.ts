@@ -1,9 +1,6 @@
 import Phaser from "phaser";
-
 export class Player extends Phaser.Physics.Arcade.Sprite{
-
   private readonly speed = 200;
-  
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys;
 //teclas de movimiento
     private keys: {

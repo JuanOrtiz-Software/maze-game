@@ -1,23 +1,6 @@
 import Phaser from "phaser";
 import { PreloadScene } from "./scenes/PreloadScene";
-
-class GameScene extends Phaser.Scene {
-    constructor() {
-        super("GameScene");
-    }
-
-    create(): void {
-        this.add.text(40, 40, "MAZE GAME", {
-            fontSize: "32px",
-            color: "#ffffff",
-        });
-
-        this.add.text(40, 85, "Primer prototipo", {
-            fontSize: "18px",
-            color: "#aaaaaa",
-        });
-    }
-}
+import { GameScene } from "./scenes/GameScene";
 
 const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
@@ -30,7 +13,7 @@ const config: Phaser.Types.Core.GameConfig = {
     parent: "game-container",
 
     scale: {
-        mode: Phaser.Scale.FIT,
+        mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH,
     },
 
