@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { PreloadScene } from "./scenes/PreloadScene";
 
 class GameScene extends Phaser.Scene {
     constructor() {
@@ -33,7 +34,7 @@ const config: Phaser.Types.Core.GameConfig = {
         autoCenter: Phaser.Scale.CENTER_BOTH,
     },
 
-    scene: [GameScene],
+    scene: [PreloadScene, GameScene],
 };
 
 new Phaser.Game(config);
