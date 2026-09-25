@@ -20,7 +20,7 @@ export class PreloadScene extends Phaser.Scene {
             );
         }
         //cargar el cultista
-        for (let i = 1; i <= 5; i++) {
+         for (let i = 1; i <= 5; i++) {
 
             this.load.image(
                 `villano${i}_der`,
