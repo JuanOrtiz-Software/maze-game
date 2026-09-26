@@ -5,11 +5,16 @@ export interface ChunkCoordinates {
     y: number;
 }
 
+export interface ChunkConnection {
+    connected: boolean;
+    position: number;
+}
+
 export interface ChunkConnections {
-    north: boolean;
-    south: boolean;
-    east: boolean;
-    west: boolean;
+    north: ChunkConnection;
+    south: ChunkConnection;
+    east: ChunkConnection;
+    west: ChunkConnection;
 }
 
 export interface Chunk {
