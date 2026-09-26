@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 export class Player extends Phaser.Physics.Arcade.Sprite{
   private readonly speed = 200;
+    private readonly displayScale = 0.25;
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys;
 //teclas de movimiento
     private keys: {
@@ -20,12 +21,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite{
 
     ) {
 
-        super(scene, x, y, "player-right-1");
+        super(scene, x, y, "player1_derecha");
 
         scene.add.existing(this);
 
         scene.physics.add.existing(this);
 
+        this.setScale(this.displayScale);
         this.setCollideWorldBounds(true);
 
         this.cursors = scene.input.keyboard!.createCursorKeys();
@@ -56,17 +58,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite{
 
             frames: [
 
-                { key: "player-right-1" },
+                { key: "player1_derecha" },
 
-                { key: "player-right-2" },
+                { key: "player2_derecha" },
 
-                { key: "player-right-3" },
+                { key: "player3_derecha" },
 
-                { key: "player-right-4" },
+                { key: "player4_derecha" },
 
-                { key: "player-right-5" },
+                { key: "player5_derecha" },
 
-                { key: "player-right-6" },
+                { key: "player6_derecha" },
 
             ],
 
@@ -82,17 +84,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite{
 
             frames: [
 
-                { key: "player-left-1" },
+                { key: "player1_izq" },
 
-                { key: "player-left-2" },
+                { key: "player2_izq" },
 
-                { key: "player-left-3" },
+                { key: "player3_izq" },
 
-                { key: "player-left-4" },
+                { key: "player4_izq" },
 
-                { key: "player-left-5" },
+                { key: "player5_izq" },
 
-                { key: "player-left-6" },
+                { key: "player6_izq" },
 
             ],
 
@@ -108,7 +110,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite{
 
             frames: [
 
-                { key: "player-right-1" },
+                { key: "player1_derecha" },
 
             ],
 
@@ -124,7 +126,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite{
 
             frames: [
 
-                { key: "player-left-1" },
+                { key: "player1_izq" },
 
             ],
 
@@ -187,6 +189,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite{
         }
 
         this.setVelocity(velocityX, velocityY);
+
+        if (velocityX === 0 && velocityY === 0) {
+            this.stop();
+            this.setVelocity(0, 0);
+
+            if (this.anims.currentAnim?.key === "player-walk-left") {
+                this.setTexture("player1_izq");
+            } else {
+                this.setTexture("player1_derecha");
+            }
+
+            return;
+        }
 
         if (velocityX < 0) {
 
