@@ -5,7 +5,6 @@ export type MazeGrid = MazeCell[][];
 export interface MazeConfig {
     width: number;
     height: number;
-    seed?: number;
 }
 
 export interface MazeResult {

@@ -12,11 +12,11 @@ export class PreloadScene extends Phaser.Scene {
 
             this.load.image(
                 `player${i}_derecha`,
-                `/assets/characters/player/right/player${i}_derecha.png`
+                `/assets/characters/right/player${i}_derecha.png`
             );
             this.load.image(
                 `player${i}_izq`,
-                `/assets/characters/player/left/player${i}_izq.png`
+                `/assets/characters/left/player${i}_izq.png`
             );
         }
         //cargar el cultista
