@@ -8,6 +8,9 @@ export class CollisionSystem {
     private wallObjects:
         Phaser.GameObjects.Rectangle[] = [];
 
+    private wallPool:
+        Phaser.GameObjects.Rectangle[] = [];
+
     private colliders:
         Phaser.Physics.Arcade.Collider[] = [];
 
@@ -79,21 +82,63 @@ export class CollisionSystem {
                 }
 
                 const width = (x - startX) * tileSize;
-                const wall = this.scene.add.rectangle(
-                    offset.x + startX * tileSize + width / 2,
-                    offset.y + y * tileSize + tileSize / 2,
+                const centerX =
+                    offset.x + startX * tileSize + width / 2;
+                const centerY =
+                    offset.y + y * tileSize + tileSize / 2;
+                const wall = this.acquireWall(
+                    centerX,
+                    centerY,
                     width,
-                    tileSize,
-                    0,
-                    0,
+                    tileSize
                 );
 
-                wall.setVisible(false);
-
-                this.scene.physics.add.existing(wall, true);
                 this.wallObjects.push(wall);
             }
         }
+    }
+
+    private acquireWall(
+        centerX: number,
+        centerY: number,
+        width: number,
+        height: number
+    ): Phaser.GameObjects.Rectangle {
+        const wall =
+            this.wallPool.pop() ??
+            this.scene.add.rectangle(
+                centerX,
+                centerY,
+                width,
+                height,
+                0,
+                0
+            );
+
+        wall.setActive(true);
+        wall.setVisible(false);
+        wall.setPosition(centerX, centerY);
+        wall.setSize(width, height);
+
+        if (
+            !wall.body ||
+            !(wall.body instanceof Phaser.Physics.Arcade.StaticBody)
+        ) {
+            this.scene.physics.add.existing(wall, true);
+        }
+
+        const body = wall.body;
+
+        if (
+            body &&
+            body instanceof Phaser.Physics.Arcade.StaticBody
+        ) {
+            body.enable = true;
+            body.setSize(width, height);
+            body.reset(centerX, centerY);
+        }
+
+        return wall;
     }
 
     /**
@@ -131,7 +176,19 @@ export class CollisionSystem {
             const wall
             of this.wallObjects
         ) {
-            wall.destroy();
+            wall.setActive(false);
+            wall.setVisible(false);
+
+            const body = wall.body;
+
+            if (
+                body &&
+                body instanceof Phaser.Physics.Arcade.StaticBody
+            ) {
+                body.enable = false;
+            }
+
+            this.wallPool.push(wall);
         }
 
         this.wallObjects = [];
@@ -142,5 +199,11 @@ export class CollisionSystem {
      */
     public destroy(): void {
         this.clearWalls();
+
+        for (const wall of this.wallPool) {
+            wall.destroy();
+        }
+
+        this.wallPool = [];
     }
 }

@@ -37,6 +37,13 @@ export class GameScene extends Phaser.Scene {
 
     private currentChunk!: Chunk;
 
+    private currentOffset!: {
+        x: number;
+        y: number;
+    };
+
+    private isTransitioning = false;
+
     private tileSize!: number;
 
     constructor() {
@@ -137,6 +144,12 @@ export class GameScene extends Phaser.Scene {
             this.tileSize
         );
 
+        this.currentOffset =
+            this.mazeRenderer.getOffset(
+                this.currentChunk,
+                this.tileSize
+            );
+
         /*
          * =========================
          * PLAYER
@@ -149,8 +162,6 @@ export class GameScene extends Phaser.Scene {
             this,
             this.player
         );
-
-        this.spawnEnemyForCurrentChunk();
 
         /*
          * =========================
@@ -224,10 +235,7 @@ export class GameScene extends Phaser.Scene {
             this.chunkTransitionSystem.detectTransition(
                 this.player,
                 this.currentChunk,
-                this.mazeRenderer.getOffset(
-                    this.currentChunk,
-                    this.tileSize
-                ),
+                this.currentOffset,
                 this.tileSize
             );
 
@@ -242,11 +250,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private createPlayer(): void {
-        const offset =
-            this.mazeRenderer.getOffset(
-                this.currentChunk,
-                this.tileSize
-            );
+        const offset = this.currentOffset;
 
         const start =
             this.currentChunk.maze.start;
@@ -277,11 +281,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private setupCollisions(): void {
-        const offset =
-            this.mazeRenderer.getOffset(
-                this.currentChunk,
-                this.tileSize
-            );
+        const offset = this.currentOffset;
 
         this.collisionSystem.buildWalls(
             this.currentChunk,
@@ -301,6 +301,13 @@ export class GameScene extends Phaser.Scene {
             y: number;
         }
     ): void {
+        if (this.isTransitioning) {
+            return;
+        }
+
+        this.isTransitioning = true;
+
+        try {
         /*
          * Detener al jugador antes
          * de cambiar de mundo.
@@ -348,52 +355,50 @@ export class GameScene extends Phaser.Scene {
             this.tileSize
         );
 
-        /*
-         * Colocar al jugador en
-         * la entrada correspondiente.
-         */
-        this.placePlayerAtEntry(
-            direction
-        );
+        this.currentOffset =
+            this.mazeRenderer.getOffset(
+                this.currentChunk,
+                this.tileSize
+            );
 
         /*
          * Crear las nuevas paredes físicas.
          */
         this.setupCollisions();
+
+        /*
+         * Colocar al jugador en una celda
+         * transitable después de crear los colliders.
+         */
+        this.placePlayerAtEntry(
+            direction
+        );
+
         this.spawnEnemyForCurrentChunk();
+        } finally {
+            this.isTransitioning = false;
+        }
     }
 
     private spawnEnemyForCurrentChunk(): void {
         this.enemySystem.setChunk(
             this.currentChunk,
             this.tileSize,
-            this.mazeRenderer.getOffset(
-                this.currentChunk,
-                this.tileSize
-            )
+            this.currentOffset
         );
     }
 
     private placePlayerAtEntry(
         direction: ChunkTransitionDirection
     ): void {
-        const offset =
-            this.mazeRenderer.getOffset(
-                this.currentChunk,
-                this.tileSize
-            );
+        const offset = this.currentOffset;
 
-        const grid =
-            this.currentChunk.maze.grid;
+        const grid = this.currentChunk.maze.grid;
+        const width = grid[0].length;
+        const height = grid.length;
 
-        const width =
-            grid[0].length;
-
-        const height =
-            grid.length;
-
-        let x: number;
-        let y: number;
+        let cellX: number;
+        let cellY: number;
 
         switch (direction) {
             case "east":
@@ -401,18 +406,8 @@ export class GameScene extends Phaser.Scene {
                  * Entramos por el WEST
                  * del nuevo chunk.
                  */
-                x =
-                    offset.x +
-                    this.tileSize * 1.5;
-
-                y =
-                    offset.y +
-                    this.currentChunk
-                        .connections
-                        .west
-                        .position *
-                    this.tileSize +
-                    this.tileSize / 2;
+                cellX = 1;
+                cellY = this.currentChunk.connections.west.position;
 
                 break;
 
@@ -420,19 +415,8 @@ export class GameScene extends Phaser.Scene {
                 /*
                  * Entramos por el EAST.
                  */
-                x =
-                    offset.x +
-                    (width - 1.5) *
-                    this.tileSize;
-
-                y =
-                    offset.y +
-                    this.currentChunk
-                        .connections
-                        .east
-                        .position *
-                    this.tileSize +
-                    this.tileSize / 2;
+                cellX = width - 2;
+                cellY = this.currentChunk.connections.east.position;
 
                 break;
 
@@ -440,18 +424,8 @@ export class GameScene extends Phaser.Scene {
                 /*
                  * Entramos por el NORTH.
                  */
-                x =
-                    offset.x +
-                    this.currentChunk
-                        .connections
-                        .north
-                        .position *
-                    this.tileSize +
-                    this.tileSize / 2;
-
-                y =
-                    offset.y +
-                    this.tileSize * 1.5;
+                cellX = this.currentChunk.connections.north.position;
+                cellY = 1;
 
                 break;
 
@@ -459,27 +433,36 @@ export class GameScene extends Phaser.Scene {
                 /*
                  * Entramos por el SOUTH.
                  */
-                x =
-                    offset.x +
-                    this.currentChunk
-                        .connections
-                        .south
-                        .position *
-                    this.tileSize +
-                    this.tileSize / 2;
-
-                y =
-                    offset.y +
-                    (height - 1.5) *
-                    this.tileSize;
+                cellX = this.currentChunk.connections.south.position;
+                cellY = height - 2;
 
                 break;
         }
+
+        const entryCell = this.findNearestWalkableCell(
+            grid,
+            cellX,
+            cellY
+        );
+
+        const x =
+            offset.x +
+            entryCell.x * this.tileSize +
+            this.tileSize / 2;
+
+        const y =
+            offset.y +
+            entryCell.y * this.tileSize +
+            this.tileSize / 2;
 
         this.player.setPosition(
             x,
             y
         );
+
+        this.player.setActive(true);
+        this.player.setVisible(true);
+        this.player.setAlpha(1);
 
         const body =
             this.player.body;
@@ -488,9 +471,48 @@ export class GameScene extends Phaser.Scene {
             body &&
             body instanceof Phaser.Physics.Arcade.Body
         ) {
+            body.enable = true;
             body.updateFromGameObject();
             body.setVelocity(0, 0);
         }
+    }
+
+    private findNearestWalkableCell(
+        grid: number[][],
+        targetX: number,
+        targetY: number
+    ): { x: number; y: number } {
+        if (grid[targetY]?.[targetX] === 0) {
+            return {
+                x: targetX,
+                y: targetY,
+            };
+        }
+
+        let nearest = {
+            x: 1,
+            y: 1,
+        };
+        let nearestDistance = Number.POSITIVE_INFINITY;
+
+        for (let y = 1; y < grid.length - 1; y++) {
+            for (let x = 1; x < grid[y].length - 1; x++) {
+                if (grid[y][x] !== 0) {
+                    continue;
+                }
+
+                const distance =
+                    Math.abs(x - targetX) +
+                    Math.abs(y - targetY);
+
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearest = { x, y };
+                }
+            }
+        }
+
+        return nearest;
     }
 
     private resizeGame(): void {
@@ -508,11 +530,7 @@ export class GameScene extends Phaser.Scene {
         let localY: number | null = null;
 
         if (this.player) {
-            const oldOffset =
-                this.mazeRenderer.getOffset(
-                    this.currentChunk,
-                    this.tileSize
-                );
+            const oldOffset = this.currentOffset;
 
             localX =
                 this.player.x -
@@ -561,7 +579,7 @@ export class GameScene extends Phaser.Scene {
             this.tileSize
         );
 
-        const newOffset =
+        this.currentOffset =
             this.mazeRenderer.getOffset(
                 this.currentChunk,
                 this.tileSize
@@ -577,8 +595,8 @@ export class GameScene extends Phaser.Scene {
             localY !== null
         ) {
             this.player.setPosition(
-                newOffset.x + localX,
-                newOffset.y + localY
+                this.currentOffset.x + localX,
+                this.currentOffset.y + localY
             );
 
             const body =
