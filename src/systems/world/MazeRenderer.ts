@@ -57,11 +57,6 @@ export class MazeRenderer {
         },
         tileSize: number
     ): void {
-        this.graphics.fillStyle(
-            0x202020,
-            1
-        );
-
         const height =
             grid.length;
 
@@ -84,13 +79,70 @@ export class MazeRenderer {
                     continue;
                 }
 
+                const wallX = offset.x + x * tileSize;
+                const wallY = offset.y + y * tileSize;
+                const inset = Math.max(2, Math.floor(tileSize * 0.08));
+
+                // Base de piedra oscura y bloque interior con relieve.
+                this.graphics.fillStyle(0x2b2520, 1);
+                this.graphics.fillRect(wallX, wallY, tileSize, tileSize);
+                this.graphics.fillStyle(0x57483a, 1);
                 this.graphics.fillRect(
-                    offset.x +
-                        x * tileSize,
-                    offset.y +
-                        y * tileSize,
-                    tileSize,
-                    tileSize
+                    wallX + inset,
+                    wallY + inset,
+                    tileSize - inset * 2,
+                    tileSize - inset * 2,
+                );
+
+                // Borde superior/lateral iluminado y base erosionada.
+                this.graphics.lineStyle(
+                    Math.max(2, Math.floor(tileSize * 0.035)),
+                    0x806b54,
+                    0.9,
+                );
+                this.graphics.lineBetween(
+                    wallX + inset,
+                    wallY + inset,
+                    wallX + tileSize - inset,
+                    wallY + inset,
+                );
+                this.graphics.lineBetween(
+                    wallX + inset,
+                    wallY + inset,
+                    wallX + inset,
+                    wallY + tileSize - inset,
+                );
+
+                this.graphics.lineStyle(
+                    Math.max(2, Math.floor(tileSize * 0.04)),
+                    0x171310,
+                    0.95,
+                );
+                this.graphics.lineBetween(
+                    wallX + inset,
+                    wallY + tileSize - inset,
+                    wallX + tileSize - inset,
+                    wallY + tileSize - inset,
+                );
+
+                // Grietas deterministas: no cambian al redibujar o cambiar de chunk.
+                const crackSeed = (x * 17 + y * 31) % 3;
+                this.graphics.lineStyle(
+                    Math.max(1, Math.floor(tileSize * 0.018)),
+                    0x241b16,
+                    0.85,
+                );
+                this.graphics.lineBetween(
+                    wallX + tileSize * (0.25 + crackSeed * 0.08),
+                    wallY + tileSize * 0.3,
+                    wallX + tileSize * 0.45,
+                    wallY + tileSize * 0.52,
+                );
+                this.graphics.lineBetween(
+                    wallX + tileSize * 0.45,
+                    wallY + tileSize * 0.52,
+                    wallX + tileSize * 0.38,
+                    wallY + tileSize * 0.72,
                 );
             }
         }

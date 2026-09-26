@@ -51,7 +51,7 @@ export class WorldConfigFactory {
          * - el jugador tenga más espacio
          * - las colisiones sean más cómodas
          */
-        const baseSize = 80;
+        const baseSize = 96;
 
         const scale =
             Math.min(
@@ -60,7 +60,7 @@ export class WorldConfigFactory {
             );
 
         return Math.max(
-            48,
+            56,
             Math.floor(
                 baseSize * scale
             )

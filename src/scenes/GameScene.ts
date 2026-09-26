@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 
 import { Player } from "../entities/Player";
+import { EnemySystem } from "../systems/EnemySystem";
 
 import { WorldConfigFactory } from "../systems/world/WorldConfigFactory";
 import { WorldGenerator } from "../systems/world/WorldGenerator";
@@ -23,6 +24,7 @@ export class GameScene extends Phaser.Scene {
     private subtitle!: Phaser.GameObjects.Text;
 
     private player!: Player;
+    private enemySystem!: EnemySystem;
 
     private worldGenerator!: WorldGenerator;
     private chunkManager!: ChunkManager;
@@ -143,6 +145,13 @@ export class GameScene extends Phaser.Scene {
 
         this.createPlayer();
 
+        this.enemySystem = new EnemySystem(
+            this,
+            this.player
+        );
+
+        this.spawnEnemyForCurrentChunk();
+
         /*
          * =========================
          * COLISIONES
@@ -198,7 +207,7 @@ export class GameScene extends Phaser.Scene {
         );
     }
 
-    update(): void {
+    update(time: number, delta: number): void {
         if (!this.player) {
             return;
         }
@@ -207,7 +216,6 @@ export class GameScene extends Phaser.Scene {
          * Movimiento del jugador.
          */
         this.player.update();
-
         /*
          * Comprobar si atravesó
          * una conexión del chunk.
@@ -229,6 +237,8 @@ export class GameScene extends Phaser.Scene {
                 transition.targetChunk
             );
         }
+
+        this.enemySystem.update(time, delta);
     }
 
     private createPlayer(): void {
@@ -331,12 +341,6 @@ export class GameScene extends Phaser.Scene {
             nextChunk;
 
         /*
-         * Limpiar las colisiones
-         * del chunk anterior.
-         */
-        this.collisionSystem.clearWalls();
-
-        /*
          * Dibujar nuevo chunk.
          */
         this.mazeRenderer.render(
@@ -356,6 +360,18 @@ export class GameScene extends Phaser.Scene {
          * Crear las nuevas paredes físicas.
          */
         this.setupCollisions();
+        this.spawnEnemyForCurrentChunk();
+    }
+
+    private spawnEnemyForCurrentChunk(): void {
+        this.enemySystem.setChunk(
+            this.currentChunk,
+            this.tileSize,
+            this.mazeRenderer.getOffset(
+                this.currentChunk,
+                this.tileSize
+            )
+        );
     }
 
     private placePlayerAtEntry(

@@ -61,55 +61,36 @@ export class CollisionSystem {
     ): void {
         this.clearWalls();
 
-        const grid =
-            chunk.maze.grid;
+        const grid = chunk.maze.grid;
 
-        for (
-            let y = 0;
-            y < grid.length;
-            y++
-        ) {
-            for (
-                let x = 0;
-                x < grid[y].length;
-                x++
-            ) {
-                /*
-                 * 0 = camino
-                 * 1 = pared
-                 */
+        for (let y = 0; y < grid.length; y++) {
+            let x = 0;
+
+            while (x < grid[y].length) {
                 if (grid[y][x] !== 1) {
+                    x++;
                     continue;
                 }
 
-                const wall =
-                    this.scene.add.rectangle(
-                        offset.x +
-                            x * tileSize +
-                            tileSize / 2,
+                const startX = x;
 
-                        offset.y +
-                            y * tileSize +
-                            tileSize / 2,
+                while (x < grid[y].length && grid[y][x] === 1) {
+                    x++;
+                }
 
-                        tileSize,
-                        tileSize,
-
-                        0x000000,
-                        0
-                    );
-
-                /*
-                 * El objeto existe solamente para
-                 * proporcionar el cuerpo físico.
-                 */
-                wall.setVisible(false);
-
-                this.scene.physics.add.existing(
-                    wall,
-                    true
+                const width = (x - startX) * tileSize;
+                const wall = this.scene.add.rectangle(
+                    offset.x + startX * tileSize + width / 2,
+                    offset.y + y * tileSize + tileSize / 2,
+                    width,
+                    tileSize,
+                    0,
+                    0,
                 );
 
+                wall.setVisible(false);
+
+                this.scene.physics.add.existing(wall, true);
                 this.wallObjects.push(wall);
             }
         }
