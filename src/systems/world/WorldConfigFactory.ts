@@ -38,21 +38,15 @@ export class WorldConfigFactory {
             tileSize,
 
             /*
-             * 5 chunks hacia cada lado.
-             *
-             * 11 × 11 = 121 chunks
-             * de datos potencialmente disponibles.
+             * Reducido a 2 para evitar saturar los Web Workers.
+             * 2 implica una grilla de 5x5 (25 chunks) pre-cargados.
              */
-            preloadDistance: 5,
+            preloadDistance: 2,
 
             /*
-             * El radio de descarga es mayor
-             * que el de precarga para evitar
-             * generar/destruir continuamente
-             * cuando el jugador se mueve
-             * alrededor de una frontera.
+             * Distancia de descarga.
              */
-            unloadDistance: 7,
+            unloadDistance: 3,
         };
     }
 

@@ -166,7 +166,7 @@ export class GameScene extends Phaser.Scene {
         this.currentOffset = { x: 0, y: 0 };
 
         this.createPlayer();
-        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+        this.cameras.main.startFollow(this.player, true, 1, 1);
         this.cameras.main.setZoom(1);
 
         /*
@@ -297,8 +297,23 @@ export class GameScene extends Phaser.Scene {
         }
 
         const visibleKeys = new Set<string>();
-        const renderDist = 2; // Rango deChunks visibles simultáneamente (aprox. 5x5 alrededor del jugador)
+        const renderDist = 1;
+        let newChunksThisFrame = 0;
+        const maxNewChunksPerFrame = 1;
 
+        // Primero: siempre renderizar el chunk del jugador sin throttle
+        const centerKey = `${currentChunkX},${currentChunkY}`;
+        visibleKeys.add(centerKey);
+        if (!this.renderedChunks.has(centerKey)) {
+            const centerChunkData = this.chunkStreamManager.getChunk({x: currentChunkX, y: currentChunkY});
+            if (centerChunkData) {
+                this.mazeRenderer.render(centerChunkData, this.tileSize);
+                this.collisionSystem.buildWalls(centerChunkData, this.tileSize);
+                this.renderedChunks.add(centerKey);
+            }
+        }
+
+        // Luego: renderizar vecinos con throttle (máx 1 por frame)
         for (let y = -renderDist; y <= renderDist; y++) {
             for (let x = -renderDist; x <= renderDist; x++) {
                 const cx = currentChunkX + x;
@@ -306,12 +321,13 @@ export class GameScene extends Phaser.Scene {
                 const key = `${cx},${cy}`;
                 visibleKeys.add(key);
 
-                if (!this.renderedChunks.has(key)) {
+                if (!this.renderedChunks.has(key) && newChunksThisFrame < maxNewChunksPerFrame) {
                     const chunk = this.chunkStreamManager.getChunk({x: cx, y: cy});
                     if (chunk) {
                         this.mazeRenderer.render(chunk, this.tileSize);
                         this.collisionSystem.buildWalls(chunk, this.tileSize);
                         this.renderedChunks.add(key);
+                        newChunksThisFrame++;
                     }
                 }
             }
