@@ -43,6 +43,7 @@ export class GameScene extends Phaser.Scene {
     };
 
     private isTransitioning = false;
+    private isGameOver = false;
 
     private tileSize!: number;
 
@@ -160,7 +161,8 @@ export class GameScene extends Phaser.Scene {
 
         this.enemySystem = new EnemySystem(
             this,
-            this.player
+            this.player,
+            () => this.handleGameOver()
         );
 
         /*
@@ -219,7 +221,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     update(time: number, delta: number): void {
-        if (!this.player) {
+        if (!this.player || this.isGameOver) {
             return;
         }
 
@@ -247,6 +249,23 @@ export class GameScene extends Phaser.Scene {
         }
 
         this.enemySystem.update(time, delta);
+    }
+
+    private handleGameOver(): void {
+        if (this.isGameOver) {
+            return;
+        }
+
+        this.isGameOver = true;
+        this.player.stopMovement();
+
+        const body = this.player.body;
+        if (body && body instanceof Phaser.Physics.Arcade.Body) {
+            body.enable = false;
+        }
+
+        this.enemySystem.stop();
+        this.scene.start("GameOverScene");
     }
 
     private createPlayer(): void {

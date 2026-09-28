@@ -6,10 +6,13 @@ import { Chunk } from "./world/types/ChunkTypes";
 export class EnemySystem {
   private readonly minimumSpawnDistance = 180;
   private enemy?: Enemy;
+  private overlap?: Phaser.Physics.Arcade.Collider;
+  private stopped = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly player: Player,
+    private readonly onPlayerCaught: () => void,
   ) {}
 
   setChunk(
@@ -18,6 +21,7 @@ export class EnemySystem {
     offset: { x: number; y: number },
   ): void {
     const position = this.getSpawnPosition(chunk, tileSize, offset);
+    this.stopped = false;
 
     if (this.enemy) {
       this.enemy.respawn(position.x, position.y);
@@ -30,10 +34,37 @@ export class EnemySystem {
       position.y,
       this.player,
     );
+
+    this.overlap = this.scene.physics.add.overlap(
+      this.enemy,
+      this.player,
+      this.onPlayerCaught,
+    );
   }
 
   update(time: number, delta: number): void {
-    this.enemy?.update(time, delta);
+    if (!this.stopped) {
+      this.enemy?.update(time, delta);
+    }
+  }
+
+  stop(): void {
+    this.stopped = true;
+    this.overlap?.destroy();
+    this.overlap = undefined;
+
+    if (!this.enemy) {
+      return;
+    }
+
+    const body = this.enemy.body;
+    if (body && body instanceof Phaser.Physics.Arcade.Body) {
+      body.setVelocity(0, 0);
+      body.enable = false;
+    }
+
+    this.enemy.setActive(false);
+    this.enemy.setVisible(false);
   }
 
   private getSpawnPosition(

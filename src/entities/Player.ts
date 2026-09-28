@@ -240,6 +240,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite{
         }
 
     }
+
+    stopMovement(): void {
+        const facingLeft = this.anims.currentAnim?.key === "player-walk-left";
+        this.setVelocity(0, 0);
+        this.anims.stop();
+        this.setTexture(facingLeft ? "player1_izq" : "player1_derecha");
+    }
 }
 
 //export default Player;

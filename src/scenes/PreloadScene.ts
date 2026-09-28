@@ -35,9 +35,14 @@ export class PreloadScene extends Phaser.Scene {
             this.load.image(
                 'ground',
                 '/assets/maps/ground.png');
+
+            this.load.image(
+                'gameOver4',
+                '/assets/ui/gameover/gameOver4.jpeg'
+            );
     }
     create(): void {
-        this.scene.start("GameScene");
+            this.scene.start("GameScene");
     }
 }  
 //export default PreloadScene;
