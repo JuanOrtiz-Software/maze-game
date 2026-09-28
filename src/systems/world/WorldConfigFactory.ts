@@ -2,7 +2,7 @@ import { WorldConfig } from "./types/WorldTypes";
 
 export class WorldConfigFactory {
     private constructor() {
-        // Clase de utilidades.
+        // Utility class.
     }
 
     public static create(
@@ -30,10 +30,23 @@ export class WorldConfigFactory {
 
         return {
             seed,
+
             chunkWidth,
+
             chunkHeight,
+
             tileSize,
-            renderDistance: 1,
+
+            /*
+             * Reducido a 2 para evitar saturar los Web Workers.
+             * 2 implica una grilla de 5x5 (25 chunks) pre-cargados.
+             */
+            preloadDistance: 2,
+
+            /*
+             * Distancia de descarga.
+             */
+            unloadDistance: 3,
         };
     }
 
@@ -41,17 +54,7 @@ export class WorldConfigFactory {
         viewportWidth: number,
         viewportHeight: number
     ): number {
-        /*
-         * Tamaño base de cada celda.
-         *
-         * Aumentarlo hace que:
-         *
-         * - paredes sean más grandes
-         * - pasillos sean más grandes
-         * - el jugador tenga más espacio
-         * - las colisiones sean más cómodas
-         */
-        const baseSize = 96;
+        const baseSize = 80;
 
         const scale =
             Math.min(
@@ -60,7 +63,7 @@ export class WorldConfigFactory {
             );
 
         return Math.max(
-            56,
+            48,
             Math.floor(
                 baseSize * scale
             )
@@ -73,7 +76,8 @@ export class WorldConfigFactory {
     ): number {
         const rawCount =
             Math.floor(
-                viewportSize / tileSize
+                viewportSize /
+                tileSize
             );
 
         let count =

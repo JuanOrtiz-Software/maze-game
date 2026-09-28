@@ -28,7 +28,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite{
         scene.physics.add.existing(this);
 
         this.setScale(this.displayScale);
-        this.setCollideWorldBounds(true);
+        this.setCollideWorldBounds(false);
 
         this.cursors = scene.input.keyboard!.createCursorKeys();
 
@@ -191,52 +191,32 @@ export class Player extends Phaser.Physics.Arcade.Sprite{
         this.setVelocity(velocityX, velocityY);
 
         if (velocityX === 0 && velocityY === 0) {
-            this.stop();
             this.setVelocity(0, 0);
 
-            if (this.anims.currentAnim?.key === "player-walk-left") {
-                this.setTexture("player1_izq");
+            const isFacingLeft =
+                this.anims.currentAnim?.key === "player-walk-left" ||
+                this.anims.currentAnim?.key === "player-idle-left";
+
+            if (isFacingLeft) {
+                this.play("player-idle-left", true);
             } else {
-                this.setTexture("player1_derecha");
+                this.play("player-idle-right", true);
             }
 
             return;
         }
 
         if (velocityX < 0) {
-
             this.play("player-walk-left", true);
-
         } else if (velocityX > 0) {
-
             this.play("player-walk-right", true);
-
         } else if (velocityY !== 0) {
-
-            // Por ahora mantenemos la animación lateral
-
-            // hasta que tengamos sprites de arriba/abajo.
-
-            if (this.anims.currentAnim?.key !== "player-walk-right" &&
-
-                this.anims.currentAnim?.key !== "player-walk-left") {
-
+            if (
+                this.anims.currentAnim?.key !== "player-walk-right" &&
+                this.anims.currentAnim?.key !== "player-walk-left"
+            ) {
                 this.play("player-walk-right", true);
-
             }
-
-        } else {
-
-            if (this.anims.currentAnim?.key === "player-walk-left") {
-
-                this.play("player-idle-left", true);
-
-            } else {
-
-                this.play("player-idle-right", true);
-
-            }
-
         }
 
     }

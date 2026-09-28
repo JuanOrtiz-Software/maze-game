@@ -3,79 +3,84 @@ import { Chunk } from "./types/ChunkTypes";
 
 export class MazeRenderer {
     private readonly scene: Phaser.Scene;
-    private readonly graphics: Phaser.GameObjects.Graphics;
+    private readonly graphicsMap: Map<string, Phaser.GameObjects.Graphics>;
+    private readonly backgroundMap: Map<string, Phaser.GameObjects.Image>;
 
     constructor(scene: Phaser.Scene) {
         this.scene = scene;
-
-        this.graphics =
-            scene.add.graphics();
-
-        this.graphics.setDepth(10);
+        this.graphicsMap = new Map();
+        this.backgroundMap = new Map();
     }
 
     public render(
         chunk: Chunk,
         tileSize: number
     ): void {
-        this.graphics.clear();
+        const key = `${chunk.coordinates.x},${chunk.coordinates.y}`;
+        if (this.graphicsMap.has(key)) {
+            return; // Already rendered
+        }
 
-        const grid =
-            chunk.maze.grid;
+        const graphics = this.scene.add.graphics();
+        graphics.setDepth(10);
+        this.graphicsMap.set(key, graphics);
 
-        const width =
-            grid[0].length;
+        const grid = chunk.maze.grid;
+        const width = grid[0].length;
+        const height = grid.length;
 
-        const height =
-            grid.length;
+        const offset = this.getChunkWorldOffset(chunk, tileSize, width, height);
 
-        const offset =
-            this.calculateOffset(
-                width,
-                height,
-                tileSize
-            );
+        const chunkPixelWidth = width * tileSize;
+        const chunkPixelHeight = height * tileSize;
 
-        this.renderWalls(
-            grid,
-            offset,
-            tileSize
+        const bg = this.scene.add.image(
+            offset.x + chunkPixelWidth / 2,
+            offset.y + chunkPixelHeight / 2,
+            "ground"
         );
+        bg.setDepth(-10);
 
-        this.renderConnections(
-            chunk,
-            offset,
-            tileSize
-        );
+        const source = this.scene.textures.get("ground")?.getSourceImage();
+        if (source) {
+            const scaleX = chunkPixelWidth / source.width;
+            const scaleY = chunkPixelHeight / source.height;
+            bg.setScale(Math.max(scaleX, scaleY));
+        }
+
+        this.backgroundMap.set(key, bg);
+
+        this.renderWalls(graphics, grid, offset, tileSize);
+        this.renderConnections(graphics, chunk, offset, tileSize);
+    }
+
+    public removeChunk(coordinates: {x: number, y: number}): void {
+        const key = `${coordinates.x},${coordinates.y}`;
+        const graphics = this.graphicsMap.get(key);
+        if (graphics) {
+            graphics.destroy();
+            this.graphicsMap.delete(key);
+        }
+
+        const bg = this.backgroundMap.get(key);
+        if (bg) {
+            bg.destroy();
+            this.backgroundMap.delete(key);
+        }
     }
 
     private renderWalls(
+        graphics: Phaser.GameObjects.Graphics,
         grid: number[][],
-        offset: {
-            x: number;
-            y: number;
-        },
+        offset: { x: number; y: number; },
         tileSize: number
     ): void {
-        const height =
-            grid.length;
+        const height = grid.length;
+        const width = grid[0].length;
 
-        const width =
-            grid[0].length;
-
-        for (
-            let y = 0;
-            y < height;
-            y++
-        ) {
-            for (
-                let x = 0;
-                x < width;
-                x++
-            ) {
-                if (
-                    grid[y][x] !== 1
-                ) {
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                if (grid[y][x] !== 1) {
                     continue;
                 }
 
@@ -83,62 +88,59 @@ export class MazeRenderer {
                 const wallY = offset.y + y * tileSize;
                 const inset = Math.max(2, Math.floor(tileSize * 0.08));
 
-                // Base de piedra oscura y bloque interior con relieve.
-                this.graphics.fillStyle(0x2b2520, 1);
-                this.graphics.fillRect(wallX, wallY, tileSize, tileSize);
-                this.graphics.fillStyle(0x57483a, 1);
-                this.graphics.fillRect(
+                graphics.fillStyle(0x2b2520, 1);
+                graphics.fillRect(wallX, wallY, tileSize, tileSize);
+                graphics.fillStyle(0x57483a, 1);
+                graphics.fillRect(
                     wallX + inset,
                     wallY + inset,
                     tileSize - inset * 2,
                     tileSize - inset * 2,
                 );
 
-                // Borde superior/lateral iluminado y base erosionada.
-                this.graphics.lineStyle(
+                graphics.lineStyle(
                     Math.max(2, Math.floor(tileSize * 0.035)),
                     0x806b54,
                     0.9,
                 );
-                this.graphics.lineBetween(
+                graphics.lineBetween(
                     wallX + inset,
                     wallY + inset,
                     wallX + tileSize - inset,
                     wallY + inset,
                 );
-                this.graphics.lineBetween(
+                graphics.lineBetween(
                     wallX + inset,
                     wallY + inset,
                     wallX + inset,
                     wallY + tileSize - inset,
                 );
 
-                this.graphics.lineStyle(
+                graphics.lineStyle(
                     Math.max(2, Math.floor(tileSize * 0.04)),
                     0x171310,
                     0.95,
                 );
-                this.graphics.lineBetween(
+                graphics.lineBetween(
                     wallX + inset,
                     wallY + tileSize - inset,
                     wallX + tileSize - inset,
                     wallY + tileSize - inset,
                 );
 
-                // Grietas deterministas: no cambian al redibujar o cambiar de chunk.
                 const crackSeed = (x * 17 + y * 31) % 3;
-                this.graphics.lineStyle(
+                graphics.lineStyle(
                     Math.max(1, Math.floor(tileSize * 0.018)),
                     0x241b16,
                     0.85,
                 );
-                this.graphics.lineBetween(
+                graphics.lineBetween(
                     wallX + tileSize * (0.25 + crackSeed * 0.08),
                     wallY + tileSize * 0.3,
                     wallX + tileSize * 0.45,
                     wallY + tileSize * 0.52,
                 );
-                this.graphics.lineBetween(
+                graphics.lineBetween(
                     wallX + tileSize * 0.45,
                     wallY + tileSize * 0.52,
                     wallX + tileSize * 0.38,
@@ -149,47 +151,23 @@ export class MazeRenderer {
     }
 
     private renderConnections(
+        graphics: Phaser.GameObjects.Graphics,
         chunk: Chunk,
-        offset: {
-            x: number;
-            y: number;
-        },
+        offset: { x: number; y: number; },
         tileSize: number
     ): void {
-        const grid =
-            chunk.maze.grid;
+        const grid = chunk.maze.grid;
+        const width = grid[0].length;
+        const height = grid.length;
+        const connectionSize = Math.max(8, Math.floor(tileSize * 0.5));
 
-        const width =
-            grid[0].length;
-
-        const height =
-            grid.length;
-
-        const connectionSize =
-            Math.max(
-                8,
-                Math.floor(
-                    tileSize * 0.5
-                )
-            );
-
-        this.graphics.fillStyle(
-            0x3498db,
-            1
-        );
+        graphics.fillStyle(0x3498db, 1);
 
         // NORTH
-        if (
-            chunk.connections.north.connected
-        ) {
-            const x =
-                chunk.connections.north.position;
-
-            this.graphics.fillRect(
-                offset.x +
-                    x * tileSize +
-                    (tileSize -
-                        connectionSize) / 2,
+        if (chunk.connections.north.connected) {
+            const x = chunk.connections.north.position;
+            graphics.fillRect(
+                offset.x + x * tileSize + (tileSize - connectionSize) / 2,
                 offset.y,
                 connectionSize,
                 tileSize
@@ -197,116 +175,60 @@ export class MazeRenderer {
         }
 
         // SOUTH
-        if (
-            chunk.connections.south.connected
-        ) {
-            const x =
-                chunk.connections.south.position;
-
-            this.graphics.fillRect(
-                offset.x +
-                    x * tileSize +
-                    (tileSize -
-                        connectionSize) / 2,
-                offset.y +
-                    (height - 1) *
-                    tileSize,
+        if (chunk.connections.south.connected) {
+            const x = chunk.connections.south.position;
+            graphics.fillRect(
+                offset.x + x * tileSize + (tileSize - connectionSize) / 2,
+                offset.y + (height - 1) * tileSize,
                 connectionSize,
                 tileSize
             );
         }
 
         // WEST
-        if (
-            chunk.connections.west.connected
-        ) {
-            const y =
-                chunk.connections.west.position;
-
-            this.graphics.fillRect(
+        if (chunk.connections.west.connected) {
+            const y = chunk.connections.west.position;
+            graphics.fillRect(
                 offset.x,
-                offset.y +
-                    y * tileSize +
-                    (tileSize -
-                        connectionSize) / 2,
+                offset.y + y * tileSize + (tileSize - connectionSize) / 2,
                 tileSize,
                 connectionSize
             );
         }
 
         // EAST
-        if (
-            chunk.connections.east.connected
-        ) {
-            const y =
-                chunk.connections.east.position;
-
-            this.graphics.fillRect(
-                offset.x +
-                    (width - 1) *
-                    tileSize,
-                offset.y +
-                    y * tileSize +
-                    (tileSize -
-                        connectionSize) / 2,
+        if (chunk.connections.east.connected) {
+            const y = chunk.connections.east.position;
+            graphics.fillRect(
+                offset.x + (width - 1) * tileSize,
+                offset.y + y * tileSize + (tileSize - connectionSize) / 2,
                 tileSize,
                 connectionSize
             );
         }
     }
 
-    public getOffset(
+    public getChunkWorldOffset(
         chunk: Chunk,
-        tileSize: number
-    ): {
-        x: number;
-        y: number;
-    } {
-        const width =
-            chunk.maze.grid[0].length;
-
-        const height =
-            chunk.maze.grid.length;
-
-        return this.calculateOffset(
-            width,
-            height,
-            tileSize
-        );
-    }
-
-    private calculateOffset(
+        tileSize: number,
         width: number,
-        height: number,
-        tileSize: number
-    ): {
-        x: number;
-        y: number;
-    } {
-        const worldWidth =
-            width * tileSize;
-
-        const worldHeight =
-            height * tileSize;
-
+        height: number
+    ): { x: number; y: number; } {
         return {
-            x: Math.floor(
-                (
-                    this.scene.scale.width -
-                    worldWidth
-                ) / 2
-            ),
-
-            y: Math.floor(
-                (
-                    this.scene.scale.height -
-                    worldHeight
-                ) / 2
-            ),
+            x: chunk.coordinates.x * width * tileSize,
+            y: chunk.coordinates.y * height * tileSize,
         };
     }
 
     public destroy(): void {
-        this.graphics.destroy();
+        for (const graphics of this.graphicsMap.values()) {
+            graphics.destroy();
+        }
+        this.graphicsMap.clear();
+
+        for (const bg of this.backgroundMap.values()) {
+            bg.destroy();
+        }
+        this.backgroundMap.clear();
     }
 }
