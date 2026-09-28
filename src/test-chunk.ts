@@ -2,13 +2,14 @@ import { ChunkGenerator } from "./systems/world/ChunkGenerator";
 import { WorldConfig } from "./systems/world/types/WorldTypes";
 
 const config: WorldConfig = {
-    seed: 928371,
-    chunkWidth: 31,
-    chunkHeight: 31,
-    tileSize: 32,
-    renderDistance: 1,
-};
+    seed: 12345,
+    chunkWidth: 15,
+    chunkHeight: 15,
+    tileSize: 40,
 
+    preloadDistance: 5,
+    unloadDistance: 6
+};
 const generator =
     new ChunkGenerator(config);
 

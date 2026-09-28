@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test:maze": "tsx src/test-chunk.ts"
+    "test:maze": "tsx src/test-chunk.ts",
+    "test:worker": "tsx src/test-worker.ts"
   },
   "devDependencies": {
     "tsx": "^4.23.15",

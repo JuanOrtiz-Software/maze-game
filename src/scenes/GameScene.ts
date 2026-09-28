@@ -4,21 +4,19 @@ import { Player } from "../entities/Player";
 import { EnemySystem } from "../systems/EnemySystem";
 
 import { WorldConfigFactory } from "../systems/world/WorldConfigFactory";
-import { WorldGenerator } from "../systems/world/WorldGenerator";
-import { ChunkManager } from "../systems/world/ChunkManager";
+import { ChunkStreamManager } from "../systems/world/ChunkStreamManager";
 import { MazeRenderer } from "../systems/world/MazeRenderer";
 
 import { CollisionSystem } from "../systems/CollisionSystem";
 
-import {
-    ChunkTransitionSystem,
-    ChunkTransitionDirection,
-} from "../systems/world/ChunkTransitionSystem";
-
 import { Chunk } from "../systems/world/types/ChunkTypes";
 
 export class GameScene extends Phaser.Scene {
-    private ground!: Phaser.GameObjects.Image;
+    /*
+     * =========================
+     * GAME OBJECTS
+     * =========================
+     */
 
     private title!: Phaser.GameObjects.Text;
     private subtitle!: Phaser.GameObjects.Text;
@@ -26,23 +24,33 @@ export class GameScene extends Phaser.Scene {
     private player!: Player;
     private enemySystem!: EnemySystem;
 
-    private worldGenerator!: WorldGenerator;
-    private chunkManager!: ChunkManager;
+    /*
+     * =========================
+     * WORLD
+     * =========================
+     */
+
+    private chunkStreamManager!: ChunkStreamManager;
 
     private mazeRenderer!: MazeRenderer;
-
     private collisionSystem!: CollisionSystem;
 
-    private chunkTransitionSystem!: ChunkTransitionSystem;
+    /*
+     * =========================
+     * CURRENT CHUNK
+     * =========================
+     */
 
     private currentChunk!: Chunk;
 
+    private worldConfig: any;
+    private lastPlayerChunk: { x: number; y: number } | null = null;
+    private renderedChunks: Set<string> = new Set();
+    
     private currentOffset!: {
         x: number;
         y: number;
     };
-
-    private isTransitioning = false;
 
     private tileSize!: number;
 
@@ -50,34 +58,20 @@ export class GameScene extends Phaser.Scene {
         super("GameScene");
     }
 
+    /*
+     * ============================================================
+     * CREATE
+     * ============================================================
+     */
+
     create(): void {
         /*
          * =========================
-         * FONDO
+         * WORLD CONFIG
          * =========================
          */
 
-        this.ground =
-            this.add.image(
-                0,
-                0,
-                "ground"
-            );
-
-        this.ground.setOrigin(
-            0.5,
-            0.5
-        );
-
-        this.ground.setDepth(-10);
-
-        /*
-         * =========================
-         * WORLD
-         * =========================
-         */
-
-        const worldConfig =
+        this.worldConfig =
             WorldConfigFactory.create(
                 this.scale.width,
                 this.scale.height,
@@ -85,18 +79,30 @@ export class GameScene extends Phaser.Scene {
             );
 
         this.tileSize =
-            worldConfig.tileSize;
+            this.worldConfig.tileSize;
 
-        this.worldGenerator =
-            new WorldGenerator(
-                worldConfig
+        /*
+         * =========================
+         * CHUNK STREAM MANAGER
+         * =========================
+         *
+         * Único punto de acceso al sistema
+         * de generación de chunks.
+         *
+         * Gestiona el pool de Workers,
+         * el cache y las prioridades de carga.
+         */
+
+        this.chunkStreamManager =
+            new ChunkStreamManager(
+                this.worldConfig
             );
 
-        this.chunkManager =
-            new ChunkManager(
-                worldConfig,
-                this.worldGenerator
-            );
+        /*
+         * =========================
+         * SISTEMAS
+         * =========================
+         */
 
         this.mazeRenderer =
             new MazeRenderer(this);
@@ -104,38 +110,51 @@ export class GameScene extends Phaser.Scene {
         this.collisionSystem =
             new CollisionSystem(this);
 
-        this.chunkTransitionSystem =
-            new ChunkTransitionSystem();
-
         /*
          * =========================
          * CHUNK INICIAL
          * =========================
+         *
+         * Solicitamos el chunk (0,0) con
+         * máxima prioridad y arrancamos
+         * la precarga alrededor de él.
+         *
+         * REGLA: GameScene nunca debe generar
+         * un chunk durante una transición.
+         * Solo durante create() se puede
+         * inicializar sincrónicamente.
          */
 
-        this.chunkManager.updatePlayerChunk({
+        this.chunkStreamManager.preloadAround({
             x: 0,
             y: 0,
         });
 
+        /*
+         * El chunk inicial debe estar disponible
+         * de inmediato antes de que el jugador
+         * empiece a moverse.
+         *
+         * ensureInitialChunk() garantiza esto:
+         * - Si el Worker ya respondió: usa el cache.
+         * - Si no: genera sincrónicamente como fallback.
+         *
+         * Esto es lo ÚNICO que puede ocurrir de forma
+         * síncrona. Las transiciones posteriores
+         * SOLO usan getChunk() del cache.
+         */
         const initialChunk =
-            this.chunkManager.getChunk({
+            this.chunkStreamManager.ensureInitialChunk({
                 x: 0,
                 y: 0,
             });
-
-        if (!initialChunk) {
-            throw new Error(
-                "Initial chunk could not be generated."
-            );
-        }
 
         this.currentChunk =
             initialChunk;
 
         /*
          * =========================
-         * RENDER DEL LABERINTO
+         * RENDER DEL CHUNK
          * =========================
          */
 
@@ -144,24 +163,23 @@ export class GameScene extends Phaser.Scene {
             this.tileSize
         );
 
-        this.currentOffset =
-            this.mazeRenderer.getOffset(
-                this.currentChunk,
-                this.tileSize
-            );
+        this.currentOffset = { x: 0, y: 0 };
+
+        this.createPlayer();
+        this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+        this.cameras.main.setZoom(1);
 
         /*
          * =========================
-         * PLAYER
+         * ENEMY SYSTEM
          * =========================
          */
 
-        this.createPlayer();
-
-        this.enemySystem = new EnemySystem(
-            this,
-            this.player
-        );
+        this.enemySystem =
+            new EnemySystem(
+                this,
+                this.player
+            );
 
         /*
          * =========================
@@ -170,6 +188,14 @@ export class GameScene extends Phaser.Scene {
          */
 
         this.setupCollisions();
+
+        /*
+         * =========================
+         * ENEMIGOS DEL CHUNK INICIAL
+         * =========================
+         */
+
+        this.spawnEnemyForCurrentChunk();
 
         /*
          * =========================
@@ -205,7 +231,7 @@ export class GameScene extends Phaser.Scene {
 
         /*
          * =========================
-         * RESIZE
+         * RESIZE INICIAL
          * =========================
          */
 
@@ -216,52 +242,110 @@ export class GameScene extends Phaser.Scene {
             this.resizeGame,
             this
         );
+
+        this.events.once(
+            Phaser.Scenes.Events.SHUTDOWN,
+            () => {
+                this.scale.off(
+                    "resize",
+                    this.resizeGame,
+                    this
+                );
+
+                this.chunkStreamManager.destroy();
+                this.collisionSystem.destroy();
+                this.mazeRenderer.destroy();
+            }
+        );
     }
 
-    update(time: number, delta: number): void {
+    /*
+     * ============================================================
+     * UPDATE
+     * ============================================================
+     */
+
+    update(
+        time: number,
+        delta: number
+    ): void {
         if (!this.player) {
             return;
         }
 
-        /*
-         * Movimiento del jugador.
-         */
         this.player.update();
-        /*
-         * Comprobar si atravesó
-         * una conexión del chunk.
-         */
-        const transition =
-            this.chunkTransitionSystem.detectTransition(
-                this.player,
-                this.currentChunk,
-                this.currentOffset,
-                this.tileSize
-            );
+        this.chunkStreamManager.update();
 
-        if (transition) {
-            this.changeChunk(
-                transition.direction,
-                transition.targetChunk
-            );
+        const cw = this.worldConfig.chunkWidth * this.tileSize;
+        const ch = this.worldConfig.chunkHeight * this.tileSize;
+
+        const currentChunkX = Math.floor(this.player.x / cw);
+        const currentChunkY = Math.floor(this.player.y / ch);
+
+        if (!this.lastPlayerChunk || this.lastPlayerChunk.x !== currentChunkX || this.lastPlayerChunk.y !== currentChunkY) {
+            this.lastPlayerChunk = { x: currentChunkX, y: currentChunkY };
+            
+            this.chunkStreamManager.preloadAround(this.lastPlayerChunk);
+            this.chunkStreamManager.unloadDistantChunks(this.lastPlayerChunk);
+            
+            const centerChunk = this.chunkStreamManager.getChunk(this.lastPlayerChunk);
+            if (centerChunk) {
+                this.currentChunk = centerChunk;
+                this.currentOffset = { x: currentChunkX * cw, y: currentChunkY * ch };
+                this.spawnEnemyForCurrentChunk();
+            }
         }
 
-        this.enemySystem.update(time, delta);
+        const visibleKeys = new Set<string>();
+        const renderDist = 2; // Rango deChunks visibles simultáneamente (aprox. 5x5 alrededor del jugador)
+
+        for (let y = -renderDist; y <= renderDist; y++) {
+            for (let x = -renderDist; x <= renderDist; x++) {
+                const cx = currentChunkX + x;
+                const cy = currentChunkY + y;
+                const key = `${cx},${cy}`;
+                visibleKeys.add(key);
+
+                if (!this.renderedChunks.has(key)) {
+                    const chunk = this.chunkStreamManager.getChunk({x: cx, y: cy});
+                    if (chunk) {
+                        this.mazeRenderer.render(chunk, this.tileSize);
+                        this.collisionSystem.buildWalls(chunk, this.tileSize);
+                        this.renderedChunks.add(key);
+                    }
+                }
+            }
+        }
+
+        for (const key of this.renderedChunks) {
+            if (!visibleKeys.has(key)) {
+                const [cx, cy] = key.split(',').map(Number);
+                this.mazeRenderer.removeChunk({x: cx, y: cy});
+                this.collisionSystem.removeChunk({x: cx, y: cy});
+                this.renderedChunks.delete(key);
+            }
+        }
+
+        if (this.enemySystem) {
+            this.enemySystem.update(time, delta);
+        }
     }
 
-    private createPlayer(): void {
-        const offset = this.currentOffset;
+    /*
+     * ============================================================
+     * CREATE PLAYER
+     * ============================================================
+     */
 
+    private createPlayer(): void {
         const start =
             this.currentChunk.maze.start;
 
         const playerX =
-            offset.x +
             start.x * this.tileSize +
             this.tileSize / 2;
 
         const playerY =
-            offset.y +
             start.y * this.tileSize +
             this.tileSize / 2;
 
@@ -274,111 +358,46 @@ export class GameScene extends Phaser.Scene {
 
         this.player.setDepth(50);
 
+        /*
+         * Configurar cuerpo físico.
+         */
         this.collisionSystem.configurePlayer(
             this.player,
             this.tileSize
         );
     }
 
-    private setupCollisions(): void {
-        const offset = this.currentOffset;
+    /*
+     * ============================================================
+     * COLLISIONS
+     * ============================================================
+     */
 
+    private setupCollisions(): void {
+
+        /*
+         * Construir paredes físicas
+         * del chunk actual.
+         */
         this.collisionSystem.buildWalls(
             this.currentChunk,
-            this.tileSize,
-            offset
+            this.tileSize
         );
 
+        /*
+         * Conectar jugador
+         * con las paredes.
+         */
         this.collisionSystem.addActor(
             this.player
         );
     }
 
-    private changeChunk(
-        direction: ChunkTransitionDirection,
-        targetCoordinates: {
-            x: number;
-            y: number;
-        }
-    ): void {
-        if (this.isTransitioning) {
-            return;
-        }
-
-        this.isTransitioning = true;
-
-        try {
-        /*
-         * Detener al jugador antes
-         * de cambiar de mundo.
-         */
-        const body =
-            this.player.body;
-
-        if (
-            body &&
-            body instanceof Phaser.Physics.Arcade.Body
-        ) {
-            body.setVelocity(0, 0);
-        }
-
-        /*
-         * Pedimos al ChunkManager
-         * que cargue el nuevo chunk.
-         */
-        this.chunkManager.updatePlayerChunk(
-            targetCoordinates
-        );
-
-        const nextChunk =
-            this.chunkManager.getChunk(
-                targetCoordinates
-            );
-
-        if (!nextChunk) {
-            throw new Error(
-                "Target chunk could not be generated."
-            );
-        }
-
-        /*
-         * Actualizar chunk actual.
-         */
-        this.currentChunk =
-            nextChunk;
-
-        /*
-         * Dibujar nuevo chunk.
-         */
-        this.mazeRenderer.render(
-            this.currentChunk,
-            this.tileSize
-        );
-
-        this.currentOffset =
-            this.mazeRenderer.getOffset(
-                this.currentChunk,
-                this.tileSize
-            );
-
-        /*
-         * Crear las nuevas paredes físicas.
-         */
-        this.setupCollisions();
-
-        /*
-         * Colocar al jugador en una celda
-         * transitable después de crear los colliders.
-         */
-        this.placePlayerAtEntry(
-            direction
-        );
-
-        this.spawnEnemyForCurrentChunk();
-        } finally {
-            this.isTransitioning = false;
-        }
-    }
+    /*
+     * ============================================================
+     * ENEMY SYSTEM
+     * ============================================================
+     */
 
     private spawnEnemyForCurrentChunk(): void {
         this.enemySystem.setChunk(
@@ -388,235 +407,19 @@ export class GameScene extends Phaser.Scene {
         );
     }
 
-    private placePlayerAtEntry(
-        direction: ChunkTransitionDirection
-    ): void {
-        const offset = this.currentOffset;
-
-        const grid = this.currentChunk.maze.grid;
-        const width = grid[0].length;
-        const height = grid.length;
-
-        let cellX: number;
-        let cellY: number;
-
-        switch (direction) {
-            case "east":
-                /*
-                 * Entramos por el WEST
-                 * del nuevo chunk.
-                 */
-                cellX = 1;
-                cellY = this.currentChunk.connections.west.position;
-
-                break;
-
-            case "west":
-                /*
-                 * Entramos por el EAST.
-                 */
-                cellX = width - 2;
-                cellY = this.currentChunk.connections.east.position;
-
-                break;
-
-            case "south":
-                /*
-                 * Entramos por el NORTH.
-                 */
-                cellX = this.currentChunk.connections.north.position;
-                cellY = 1;
-
-                break;
-
-            case "north":
-                /*
-                 * Entramos por el SOUTH.
-                 */
-                cellX = this.currentChunk.connections.south.position;
-                cellY = height - 2;
-
-                break;
-        }
-
-        const entryCell = this.findNearestWalkableCell(
-            grid,
-            cellX,
-            cellY
-        );
-
-        const x =
-            offset.x +
-            entryCell.x * this.tileSize +
-            this.tileSize / 2;
-
-        const y =
-            offset.y +
-            entryCell.y * this.tileSize +
-            this.tileSize / 2;
-
-        this.player.setPosition(
-            x,
-            y
-        );
-
-        this.player.setActive(true);
-        this.player.setVisible(true);
-        this.player.setAlpha(1);
-
-        const body =
-            this.player.body;
-
-        if (
-            body &&
-            body instanceof Phaser.Physics.Arcade.Body
-        ) {
-            body.enable = true;
-            body.updateFromGameObject();
-            body.setVelocity(0, 0);
-        }
-    }
-
-    private findNearestWalkableCell(
-        grid: number[][],
-        targetX: number,
-        targetY: number
-    ): { x: number; y: number } {
-        if (grid[targetY]?.[targetX] === 0) {
-            return {
-                x: targetX,
-                y: targetY,
-            };
-        }
-
-        let nearest = {
-            x: 1,
-            y: 1,
-        };
-        let nearestDistance = Number.POSITIVE_INFINITY;
-
-        for (let y = 1; y < grid.length - 1; y++) {
-            for (let x = 1; x < grid[y].length - 1; x++) {
-                if (grid[y][x] !== 0) {
-                    continue;
-                }
-
-                const distance =
-                    Math.abs(x - targetX) +
-                    Math.abs(y - targetY);
-
-                if (distance < nearestDistance) {
-                    nearestDistance = distance;
-                    nearest = { x, y };
-                }
-            }
-        }
-
-        return nearest;
-    }
+    /*
+     * ============================================================
+     * RESIZE
+     * ============================================================
+     */
 
     private resizeGame(): void {
-        const width =
-            this.scale.width;
-
-        const height =
-            this.scale.height;
 
         /*
-         * Guardamos la posición del jugador
-         * relativa al chunk.
+         * =========================
+         * UI
+         * =========================
          */
-        let localX: number | null = null;
-        let localY: number | null = null;
-
-        if (this.player) {
-            const oldOffset = this.currentOffset;
-
-            localX =
-                this.player.x -
-                oldOffset.x;
-
-            localY =
-                this.player.y -
-                oldOffset.y;
-        }
-
-        /*
-         * Fondo.
-         */
-        this.ground.setPosition(
-            width / 2,
-            height / 2
-        );
-
-        const source =
-            this.textures
-                .get("ground")
-                .getSourceImage();
-
-        const scaleX =
-            width / source.width;
-
-        const scaleY =
-            height / source.height;
-
-        const scale =
-            Math.max(
-                scaleX,
-                scaleY
-            );
-
-        this.ground.setScale(
-            scale
-        );
-
-        /*
-         * Redibujar el chunk
-         * en su nueva posición.
-         */
-        this.mazeRenderer.render(
-            this.currentChunk,
-            this.tileSize
-        );
-
-        this.currentOffset =
-            this.mazeRenderer.getOffset(
-                this.currentChunk,
-                this.tileSize
-            );
-
-        /*
-         * Restaurar la posición relativa
-         * del jugador.
-         */
-        if (
-            this.player &&
-            localX !== null &&
-            localY !== null
-        ) {
-            this.player.setPosition(
-                this.currentOffset.x + localX,
-                this.currentOffset.y + localY
-            );
-
-            const body =
-                this.player.body;
-
-            if (
-                body &&
-                body instanceof Phaser.Physics.Arcade.Body
-            ) {
-                body.updateFromGameObject();
-            }
-        }
-
-        /*
-         * Reconstruir cuerpos físicos
-         * porque el chunk cambió de posición.
-         */
-        if (this.player) {
-            this.setupCollisions();
-        }
 
         this.title.setPosition(
             40,

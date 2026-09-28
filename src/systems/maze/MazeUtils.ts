@@ -188,9 +188,14 @@ export class MazeUtils {
         edge: MazeEdge,
         position: number
     ): void {
+        const max =
+            edge === "north" || edge === "south"
+                ? grid[0].length - 1
+                : grid.length - 1;
+
         if (
             position <= 0 ||
-            position >= grid[0].length - 1 ||
+            position >= max ||
             position % 2 === 0
         ) {
             throw new Error(
