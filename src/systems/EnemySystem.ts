@@ -106,6 +106,13 @@ export class EnemySystem {
 
     return { x, y };
   }
-}
 
-export default EnemySystem;
+  destroy(): void {
+    this.stop();
+
+    if (this.enemy) {
+      this.enemy.destroy();
+      this.enemy = undefined;
+    }
+  }
+}

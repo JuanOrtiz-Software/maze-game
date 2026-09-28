@@ -68,6 +68,20 @@ export class GameScene extends Phaser.Scene {
     create(): void {
         /*
          * =========================
+         * RESET STATE
+         * =========================
+         * Fundamental para el ciclo
+         * jugar → perder → reiniciar.
+         * Phaser reutiliza la instancia
+         * de la escena, así que debemos
+         * limpiar todo manualmente.
+         */
+        this.isGameOver = false;
+        this.lastPlayerChunk = null;
+        this.renderedChunks = new Set();
+
+        /*
+         * =========================
          * WORLD CONFIG
          * =========================
          */
@@ -86,12 +100,6 @@ export class GameScene extends Phaser.Scene {
          * =========================
          * CHUNK STREAM MANAGER
          * =========================
-         *
-         * Único punto de acceso al sistema
-         * de generación de chunks.
-         *
-         * Gestiona el pool de Workers,
-         * el cache y las prioridades de carga.
          */
 
         this.chunkStreamManager =
@@ -115,15 +123,6 @@ export class GameScene extends Phaser.Scene {
          * =========================
          * CHUNK INICIAL
          * =========================
-         *
-         * Solicitamos el chunk (0,0) con
-         * máxima prioridad y arrancamos
-         * la precarga alrededor de él.
-         *
-         * REGLA: GameScene nunca debe generar
-         * un chunk durante una transición.
-         * Solo durante create() se puede
-         * inicializar sincrónicamente.
          */
 
         this.chunkStreamManager.preloadAround({
@@ -131,19 +130,6 @@ export class GameScene extends Phaser.Scene {
             y: 0,
         });
 
-        /*
-         * El chunk inicial debe estar disponible
-         * de inmediato antes de que el jugador
-         * empiece a moverse.
-         *
-         * ensureInitialChunk() garantiza esto:
-         * - Si el Worker ya respondió: usa el cache.
-         * - Si no: genera sincrónicamente como fallback.
-         *
-         * Esto es lo ÚNICO que puede ocurrir de forma
-         * síncrona. Las transiciones posteriores
-         * SOLO usan getChunk() del cache.
-         */
         const initialChunk =
             this.chunkStreamManager.ensureInitialChunk({
                 x: 0,
@@ -164,6 +150,8 @@ export class GameScene extends Phaser.Scene {
             this.tileSize
         );
 
+        this.renderedChunks.add('0,0');
+
         this.currentOffset = { x: 0, y: 0 };
 
         this.createPlayer();
@@ -180,7 +168,7 @@ export class GameScene extends Phaser.Scene {
             new EnemySystem(
                 this,
                 this.player,
-            () => this.handleGameOver()
+                () => this.handleGameOver()
             );
 
         /*
@@ -201,7 +189,7 @@ export class GameScene extends Phaser.Scene {
 
         /*
          * =========================
-         * UI
+         * UI (ScrollFactor 0 = fija en pantalla)
          * =========================
          */
 
@@ -215,8 +203,8 @@ export class GameScene extends Phaser.Scene {
                     color: "#ffffff",
                 }
             );
-
         this.title.setDepth(100);
+        this.title.setScrollFactor(0);
 
         this.subtitle =
             this.add.text(
@@ -228,12 +216,12 @@ export class GameScene extends Phaser.Scene {
                     color: "#aaaaaa",
                 }
             );
-
         this.subtitle.setDepth(100);
+        this.subtitle.setScrollFactor(0);
 
         /*
          * =========================
-         * RESIZE INICIAL
+         * RESIZE
          * =========================
          */
 
@@ -257,6 +245,7 @@ export class GameScene extends Phaser.Scene {
                 this.chunkStreamManager.destroy();
                 this.collisionSystem.destroy();
                 this.mazeRenderer.destroy();
+                this.enemySystem.destroy();
             }
         );
     }
