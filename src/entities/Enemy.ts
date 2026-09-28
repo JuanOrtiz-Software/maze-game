@@ -23,6 +23,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setScale(0.25);
     this.setCollideWorldBounds(false);
     this.setDepth(40);
+
+    const body = this.body;
+    if (body && body instanceof Phaser.Physics.Arcade.Body) {
+      body.debugShowBody = false;
+    }
   }
 
   update(_time: number, delta: number): void {

@@ -38,8 +38,8 @@ export class CollisionSystem {
         }
 
         body.setSize(
-            tileSize * 0.55,
             tileSize * 0.65,
+            tileSize * 0.75,
             true
         );
 
